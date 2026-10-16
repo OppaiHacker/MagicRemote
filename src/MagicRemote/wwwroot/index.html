@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MagicRemote</title>
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="vendor/xterm.css">
+<style>
+.app{grid-template-rows:44px 1fr}
+.titlebar{padding-right:8px}
+.stagewrap{display:flex;flex-direction:column}
+#stage{position:relative;flex:1;inset:auto;min-height:0}
+#stageMain{position:absolute;inset:0}
+#termHost{position:absolute;inset:0;background:#0b0c0e;padding:8px 0 0 10px}
+#termHost .term{position:absolute;inset:8px 0 0 10px}
+.rdp-stage{position:absolute;inset:0;background:#000}
+.sbar{display:flex;align-items:center;gap:6px;height:40px;padding:0 8px 0 14px;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap;min-width:0}
+.sbar .nm{font-weight:600}
+.sbar .host{color:var(--muted);font:11.5px var(--mono);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.chipm{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;background:var(--surface2);font:500 11.5px var(--mono);color:var(--text2);font-variant-numeric:tabular-nums}
+.chipm b{color:var(--ok);font-weight:600}
+.sbar .grow{flex:1;min-width:8px}
+.tab .kind{font:600 9.5px var(--mono);color:var(--muted);letter-spacing:.04em}
+.tab.disconnected .dot{background:var(--err)}
+.tab.reconnecting .dot{background:var(--warn);animation:pulse 1s ease-in-out infinite}
+.card2{width:min(420px,90%);padding:22px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.card2 h3{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:15px}
+.card2 p{margin:0 0 16px;color:var(--text2);white-space:pre-wrap;word-break:break-word}
+.card2 .row{display:flex;gap:8px;flex-wrap:wrap}
+.center{position:absolute;inset:0;display:grid;place-items:center;background:var(--bg2)}
+#toasts{top:50px;bottom:auto;right:auto;left:50%;transform:translateX(-50%);align-items:center}
+.toast{max-width:min(620px,70vw)}
+.toast span{overflow:hidden;text-overflow:ellipsis}
+body.live .toast{padding:5px 10px;white-space:nowrap}
+body.live #toasts .toast:not(:last-child){display:none}
+.toast.err{border-color:color-mix(in srgb,var(--err) 45%,transparent)}
+/* file panes */
+.pane-p{display:flex;align-items:center;gap:4px;padding:4px 6px;border-bottom:1px solid var(--border)}
+.pane-p .path{flex:1;min-width:0;font:11.5px var(--mono);color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.frow .fi{width:22px;height:22px;display:grid;place-items:center;color:var(--warn);flex:none}
+.frow .fi .i{width:18px;height:18px;fill:color-mix(in srgb,var(--warn) 25%,transparent)}
+.perr{padding:14px;color:var(--err);font-size:12px;white-space:pre-wrap}
+.fm{position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-rows:1fr auto;gap:12px;padding:14px}
+.fm .pane{margin:0}
+.fm .mid{display:flex;flex-direction:column;justify-content:center;gap:8px}
+.fm .phint{grid-column:1/-1;border:0}
+.fm .queue{grid-column:1/-1;margin:0;border:1px solid var(--border);border-radius:10px;max-height:200px}
+.qi .x{margin-left:auto}
+.cent .names{font:12px/1.5 var(--mono);color:var(--text)}
+.cent img{display:block;max-width:100%;border-radius:6px;margin-bottom:6px}
+.badge{font:600 9.5px var(--mono);letter-spacing:.04em;padding:2px 5px;border-radius:4px;background:var(--surface2);color:var(--text2)}
+.thumbimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.thumbph{position:absolute;inset:0;display:grid;place-items:center;color:rgba(255,255,255,.75);background:radial-gradient(100% 90% at 85% 10%,hsl(var(--h) 70% 55%/.55),transparent 60%),linear-gradient(160deg,hsl(var(--h) 45% 18%),hsl(calc(var(--h) + 30) 40% 9%))}
+.thumbph .i{width:28px;height:28px}
+.empty-cta{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:22px;border:1px dashed var(--border2);border-radius:12px;color:var(--text2)}
+[data-p]{display:none}
+.ed[data-proto=rdp] [data-p~=rdp],.ed[data-proto=ssh] [data-p~=ssh],.ed[data-proto=sftp] [data-p~=sftp],.ed[data-proto=ftp] [data-p~=ftp]{display:flex}
+.ed[data-proto=rdp][data-os=win] [data-os-only=lnx],.ed[data-proto=rdp][data-os=lnx] [data-os-only=win]{display:none}
+.ed:not([data-proto=rdp]) .seg [data-v=disp],.ed:not([data-proto=rdp]) .seg [data-v=res],.ed:not([data-proto=rdp]) .seg [data-v=perf]{display:none}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="titlebar">
+    <button class="icon-btn" data-act="sidebar" data-i="sidebar" title="Sidebar (Ctrl+B)"></button>
+    <div class="brand"><span class="logo"></span>MagicRemote</div>
+    <div class="tabs" id="tabs"></div>
+    <div class="tb-actions">
+      <button class="xfer-ind" id="xferInd" data-act="panelopen" data-v="files" title="Transfers in progress" hidden><span class="ring"></span><b>0</b></button>
+      <button class="icon-btn" data-act="palette" data-i="search" title="Search / quick connect (Ctrl+K)"></button>
+      <button class="icon-btn" id="ovBtn" data-act="overview" data-i="grid" title="Session overview (Ctrl+Shift+O)"></button>
+      <button class="icon-btn" data-act="panel" data-v="files" data-i="folder" title="Files and transfer"></button>
+      <button class="icon-btn" data-act="panel" data-v="clip" data-i="clip" title="Shared clipboard"></button>
+      <button class="icon-btn" id="themeBtn" data-act="theme" title="Theme"></button>
+    </div>
+  </header>
+  <div class="body">
+    <aside class="sidebar">
+      <div class="profwrap">
+        <button id="profBtn" data-act="profmenu" title="Switch profile"></button>
+        <div class="menu" id="profMenu" hidden></div>
+      </div>
+      <label class="search"><span data-i="search"></span><input class="in" id="msearch" placeholder="Search machines" autocomplete="off"><span class="kbd">Ctrl K</span></label>
+      <div class="mlist" id="mlist"></div>
+      <div class="sfoot">
+        <button data-act="newm" data-i="plus" title="Add machine"> New</button>
+        <button data-act="vault" data-i="key" title="Password vault"> Vault</button>
+      </div>
+    </aside>
+    <main class="stagewrap" id="stagewrap">
+      <div class="sbar" id="sbar" hidden></div>
+      <div id="stage"><div id="stageMain"></div><div id="termHost" hidden></div></div>
+    </main>
+    <aside class="panel" id="panel" hidden></aside>
+  </div>
+</div>
+<div id="layers"></div>
+<div id="toasts" aria-live="polite"></div>
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

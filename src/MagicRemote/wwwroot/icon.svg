@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d5a6e"/>
+      <stop offset="1" stop-color="#25394a"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a2f78"/>
+      <stop offset="1" stop-color="#241d52"/>
+    </linearGradient>
+    <linearGradient id="star" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc561"/>
+      <stop offset="1" stop-color="#f08a24"/>
+    </linearGradient>
+    <linearGradient id="cur" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3fe0b0"/>
+      <stop offset="1" stop-color="#169c7c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffb347" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shade" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="tile"><rect x="8" y="8" width="240" height="240" rx="56"/></clipPath>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <!-- long shadow -->
+  <path clip-path="url(#tile)" d="M44 60 L212 60 L260 108 L260 260 L120 260 L44 184 Z" fill="url(#shade)"/>
+  <!-- stand -->
+  <path d="M112 186 h32 l6 22 h-44 z" fill="#3d3570"/>
+  <rect x="88" y="204" width="80" height="11" rx="5.5" fill="#6c62a8"/>
+  <!-- monitor -->
+  <rect x="38" y="54" width="180" height="136" rx="14" fill="#1b1640"/>
+  <rect x="47" y="63" width="162" height="104" rx="6" fill="url(#screen)"/>
+  <path d="M38 172 h180 v4 a14 14 0 0 1 -14 14 h-152 a14 14 0 0 1 -14 -14 z" fill="#6c62a8"/>
+  <circle cx="128" cy="181" r="3" fill="#a79ff0"/>
+  <!-- star -->
+  <circle cx="104" cy="114" r="44" fill="url(#glow)"/>
+  <path d="M104 78 C109 104 114 109 140 114 C114 119 109 124 104 150 C99 124 94 119 68 114 C94 109 99 104 104 78 Z" fill="url(#star)"/>
+  <path d="M104 78 C109 104 114 109 140 114 L104 114 Z" fill="#fff" opacity=".25"/>
+  <circle cx="146" cy="88" r="3.5" fill="#ffd27a"/>
+  <circle cx="82" cy="142" r="2.5" fill="#ffd27a" opacity=".8"/>
+  <!-- cursor -->
+  <path d="M150 118 L188 136 L172 141 L184 157 L176 163 L164 147 L156 159 Z" fill="url(#cur)" stroke="#e9fff8" stroke-width="4" stroke-linejoin="round"/>
+</svg>

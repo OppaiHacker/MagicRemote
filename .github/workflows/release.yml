@@ -1,0 +1,27 @@
+# Tag vX.Y.Z -> build Windows and Linux packages (self-contained), selftest, GitHub release with both assets.
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          dotnet publish src/MagicRemote -c Release -f net10.0 -r linux-x64 --self-contained -p:Version=$v -o out/MagicRemote-linux
+          dotnet publish src/MagicRemote -c Release -f net10.0-windows10.0.22621.0 -r win-x64 --self-contained -p:Version=$v -o out/MagicRemote-win
+          out/MagicRemote-linux/MagicRemote --selftest
+          tar -czf MagicRemote-$v-linux-x64.tar.gz -C out/MagicRemote-linux .
+          (cd out/MagicRemote-win && zip -qr ../../MagicRemote-$v-win-x64.zip .)
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" MagicRemote-*.zip MagicRemote-*.tar.gz --title "MagicRemote ${GITHUB_REF_NAME#v}" --generate-notes
