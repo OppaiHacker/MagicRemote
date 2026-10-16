@@ -125,4 +125,4 @@ tests/              selftest, E2E via CDP (Windows, Linux, updates)
 
 ## License
 
-[MIT](LICENSE)
+[GNU GPL v3](LICENSE). MagicRemote is free software and stays free: every copy and every fork must be distributed under the same license, with its source code.
