@@ -83,7 +83,7 @@ const S = {
   D:{profiles:[], machines:[], creds:[], profile:'', theme:'dark', sidebar:true, platform:'win', version:''}, quit:false, update:null,
   sessions:[], active:null, view:'session', panel:null, occ:null,
   reach:{}, clip:[], transfers:new Map(), thumbs:{}, reveal:{},
-  search:'', collapsed:new Set(), moveMode:false, palIdx:0, palItems:[], reqN:0,
+  search:'', collapsed:new Set(), moveMode:false, dragM:null, palIdx:0, palItems:[], reqN:0,
   panes:{}, // A/B = side panel, X/Y = file manager tab
 };
 const mach = id => S.D.machines.find(m => m.id === id);
@@ -95,6 +95,7 @@ const prof = (id = S.D.profile) => S.D.profiles.find(p => p.id === id) || S.D.pr
 const locName = loc => loc === 'host' ? 'This computer' : machOf(sess(loc))?.name || '—';
 const srcName = src => src === 'host' ? 'This computer' : mach(src)?.name || 'session';
 const uid = () => crypto.randomUUID().replace(/-/g, '');
+const groupsOf = (pid = S.D.profile) => [...new Set([...(prof(pid).groups || []), ...S.D.machines.filter(m => m.profile === pid).map(m => m.group)])];
 
 /* ---------- toasts & layers ---------- */
 function toast(msg, o = {}) {
@@ -174,11 +175,13 @@ function renderList() {
   const q = S.search.trim().toLowerCase();
   const ms = S.D.machines.filter(m => m.profile === S.D.profile && (!q || `${m.name} ${m.host} ${m.group} ${m.proto}`.toLowerCase().includes(q)))
     .sort((a, b) => (b.fav - a.fav) || a.name.localeCompare(b.name));
-  const groups = {};
+  const groups = Object.fromEntries(q ? [] : groupsOf().map(g => [g, []]));
   ms.forEach(m => (groups[m.group] ||= []).push(m));
   $('#mlist').innerHTML = Object.entries(groups).map(([g, list]) => `
-    <div class="grp ${S.collapsed.has(g) ? 'col' : ''}">
-      <button class="gh" data-act="group" data-g="${esc(g)}">${ic('down')}<span>${esc(g)}</span><em>${list.length}</em></button>
+    <div class="grp ${S.collapsed.has(g) ? 'col' : ''}" data-gdrop="${esc(g)}">
+      <div class="gh" data-act="group" data-g="${esc(g)}" tabindex="0">${ic('down')}<span>${esc(g)}</span><em>${list.length}</em>
+        ${list.length ? '' : `<button class="icon-btn sm" data-act="gdel" data-g="${esc(g)}" title="Delete empty group">${ic('trash')}</button>`}
+        <button class="icon-btn sm" data-act="gadd" data-g="${esc(g)}" title="Add machine to this group">${ic('plus')}</button></div>
       <div class="gl">${list.map(mrow).join('')}</div>
     </div>`).join('') || `<div class="empty">${q ? `No results for “${esc(S.search)}”` : 'No machines in this profile'}</div>`;
 }
@@ -186,7 +189,7 @@ function mrow(m) {
   const s = S.sessions.find(x => x.mid === m.id);
   const st = s ? 'live' : S.reach[m.id] === false ? 'off' : S.reach[m.id] ? 'on' : '';
   const tip = s ? 'Session open — click to switch' : S.reach[m.id] === false ? `${m.host}:${m.port} does not respond` : 'Click to connect';
-  return `<div class="mrow ${s && s.id === S.active && S.view === 'session' ? 'act' : ''}" data-act="connect" data-id="${m.id}" tabindex="0" title="${esc(tip)}">
+  return `<div class="mrow ${s && s.id === S.active && S.view === 'session' ? 'act' : ''}" data-act="connect" data-id="${m.id}" draggable="true" data-mdrag="${m.id}" tabindex="0" title="${esc(tip)}">
     <span class="os">${ic(mIcon(m))}</span>
     <span class="mt"><b>${esc(m.name)}</b><small>${m.proto !== 'rdp' ? PROTO[m.proto].toLowerCase() + '://' : ''}${esc(m.host)}${m.port !== DEF_PORT[m.proto] ? ':' + m.port : ''}</small></span>
     ${m.fav ? `<span class="fav">${ic('star')}</span>` : ''}<span class="st ${st}"></span>
@@ -198,7 +201,9 @@ function toggleProfMenu() {
   if (!menu.hidden) { menu.hidden = true; return; }
   menu.innerHTML = S.D.profiles.map(p => {
     const n = S.D.machines.filter(m => m.profile === p.id).length;
-    return `<button data-act="profile" data-id="${p.id}"><span class="pav sm" style="--c:${esc(p.color)}">${esc(p.name[0] || '?')}</span><span class="pn"><b>${esc(p.name)}</b><small>${n} ${plural(n, 'machine', 'machines', 'machines')}</small></span>${p.id === S.D.profile ? ic('check') : ''}</button>`;
+    return `<div class="pitem" data-act="profile" data-id="${p.id}" tabindex="0"><span class="pav sm" style="--c:${esc(p.color)}">${esc(p.name[0] || '?')}</span><span class="pn"><b>${esc(p.name)}</b><small>${n} ${plural(n, 'machine', 'machines', 'machines')}</small></span>${p.id === S.D.profile ? ic('check') : ''}
+      <button class="icon-btn sm" data-act="profren" data-id="${p.id}" title="Rename">${ic('more')}</button>
+      ${n || S.D.profiles.length < 2 ? '' : `<button class="icon-btn sm danger" data-act="profdel" data-id="${p.id}" title="Delete empty profile">${ic('trash')}</button>`}</div>`;
   }).join('') + `<div class="mdiv"></div><button data-act="profnew">${ic('plus')}<span>New profile…</span></button>`;
   menu.hidden = false;
 }
@@ -263,7 +268,7 @@ function homeHTML() {
     <h1>Connect</h1>
     <form class="qc" data-form="quick">${ic('search')}<input name="q" placeholder="host, IP, host:port, ssh://user@host, ftp://host" autocomplete="off" autofocus><span class="kbd">Enter</span></form>
     <div class="sec">${esc(prof().name)} · recent and favorites</div>
-    ${ms.length ? `<div class="cards">${ms.map(m => `<button class="card" data-act="connect" data-id="${m.id}"><span class="cv" style="--h:${m.hue}">${ic(mIcon(m))}</span><b>${esc(m.name)}</b><small>${PROTO[m.proto]} · ${esc(m.host)}</small><span class="st ${S.reach[m.id] === false ? 'off' : S.reach[m.id] ? 'on' : ''}"></span></button>`).join('')}</div>`
+    ${ms.length ? `<div class="cards">${ms.map(m => `<button class="card" data-act="connect" data-id="${m.id}"><span class="cv" style="--h:${m.hue}">${m.img ? `<img src="${esc(m.img)}" alt="">` : ic(mIcon(m))}</span><b>${esc(m.name)}</b><small>${PROTO[m.proto]} · ${esc(m.host)}</small><span class="st ${S.reach[m.id] === false ? 'off' : S.reach[m.id] ? 'on' : ''}"></span></button>`).join('')}</div>`
       : `<div class="empty-cta"><b>No machines in profile “${esc(prof().name)}”</b><span>Add a remote desktop (RDP), SSH server, or file server (SFTP/FTP).</span><button class="btn pri" data-act="newm">${ic('plus')}Add machine</button></div>`}
     <div class="hints"><span><span class="kbd">Ctrl K</span>palette</span><span><span class="kbd">Alt 1–9</span>session</span><span><span class="kbd">Ctrl Alt ← →</span>switch from inside RDP</span><span><span class="kbd">Ctrl Alt Break</span>full screen</span></div>
   </div></div>`;
@@ -271,7 +276,7 @@ function homeHTML() {
 function overviewHTML() {
   return `<div class="ov"><div class="ov-h"><h2>Sessions <em>${S.sessions.length}</em></h2><span class="muted">Drop a file on a tile to send it to that session.</span></div>
     <div class="ov-g">${S.sessions.map(s => {
-      const m = machOf(s), img = S.thumbs[s.id];
+      const m = machOf(s), img = S.thumbs[s.id] || m?.img;
       return `<div class="tile ${s.id === S.active ? 'cur' : ''}" data-act="tab" data-id="${s.id}" data-dropto="${s.id}">
         <div class="thumb" style="aspect-ratio:16/9">${img ? `<img class="thumbimg" src="${img}" alt="">` : `<div class="thumbph" style="--h:${m?.hue ?? 220}">${ic(m ? mIcon(m) : 'monitor')}</div>`}</div>
         <div class="cap"><span class="dot" style="background:${s.state === 'connected' ? 'var(--ok)' : s.state === 'disconnected' ? 'var(--err)' : 'var(--warn)'}"></span><b>${esc(m?.name)}</b><small>${PROTO[m?.proto]} · ${esc(m?.host)}</small><span class="rtt" data-rtt="${s.id}">${s.rtt > 0 ? s.rtt + ' ms' : ''}</span>
@@ -438,7 +443,6 @@ const DEF = {app:'', appArgs:'', relMouse:false, proto:'rdp', port:3389, sshPort
 function openEditor(id, preset) {
   const m = id ? mach(id) : {...DEF, id:'', name:'', host:'', profile:S.D.profile, cred:S.D.creds[0]?.id ?? null, hue:Math.floor(Math.random() * 360), ...preset};
   if (!m) return;
-  const groups = [...new Set(S.D.machines.map(x => x.group))];
   const sel = (n, opts, v) => `<select class="in" name="${n}">${opts.map(([o, l]) => `<option value="${esc(o)}" ${String(o) === String(v ?? '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   const sw = (n, l, d) => `<label class="sw"><input type="checkbox" name="${n}" ${m[n] ? 'checked' : ''}><i></i><span>${l}<small>${d}</small></span></label>`;
   const el = openLayer('ed', `<form class="modal ed" data-form="ed" data-id="${esc(m.id)}" data-proto="${m.proto}" data-os="${m.os}" novalidate>
@@ -449,12 +453,11 @@ function openEditor(id, preset) {
         <div class="fld c6"><span>Connection type</span><div class="radios" style="grid-template-columns:repeat(4,1fr)">${[['rdp','Desktop (RDP)','Windows, xrdp'],['ssh','SSH','Terminal + SFTP'],['sftp','SFTP','Files over SSH'],['ftp','FTP / FTPS','File server']].map(([v, l, d]) => `<label class="rc"><input type="radio" name="proto" value="${v}" ${m.proto === v ? 'checked' : ''}><b>${l}</b><small>${d}</small></label>`).join('')}</div></div>
         <div class="fld c4"><span>Name</span><input class="in" name="name" value="${esc(m.name)}" placeholder="e.g. srv-app-01"></div>
         <div class="fld c2" data-p="rdp"><span>System</span>${sel('os', [['win','Windows'],['lnx','Linux (xrdp)']], m.os)}</div>
-        <div class="fld c2" data-p="ssh sftp ftp"><span>Group</span><input class="in" name="group2" list="grps" value="${esc(m.group)}"></div>
+        <div class="fld c2" data-p="ssh sftp ftp"></div>
         <div class="fld c4" style="display:flex"><span>Host / IP</span><input class="in mono" name="host" value="${esc(m.host)}" placeholder="10.0.0.5 or host.domain"></div>
         <div class="fld c2" style="display:flex"><span>Port</span><input class="in mono" name="port" type="number" min="1" max="65535" value="${m.port}"></div>
         <div class="fld c3" style="display:flex"><span>Profile</span>${sel('profile', S.D.profiles.map(p => [p.id, p.name]), m.profile)}</div>
-        <div class="fld c3" data-p="rdp"><span>Group</span><input class="in" name="group" list="grps" value="${esc(m.group)}" placeholder="e.g. Production"><datalist id="grps">${groups.map(g => `<option value="${esc(g)}">`).join('')}</datalist></div>
-        <div class="fld c3" data-p="ssh sftp ftp"></div>
+        <div class="fld c3"><span>Group</span><select class="in" name="group">${[...new Set(['No group', ...groupsOf(m.profile), m.group])].map(g => `<option ${g === m.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}<option value="">New group…</option></select></div>
         <div class="fld c6" style="display:flex"><span>Credentials from vault</span>${sel('cred', [['', m.proto === 'ftp' ? 'Anonymous' : 'Ask when connecting (RDP only)'], ...S.D.creds.map(c => [c.id, `${c.label || c.user} — ${c.user}`])], m.cred)}</div>
         <div class="fld c6" data-p="ssh sftp"><span>Private key (optional; vault password = passphrase)</span><input class="in mono" name="keyFile" value="${esc(m.keyFile)}" placeholder="C:\\Users\\alice\\.ssh\\id_ed25519"></div>
         <div class="fld c6" data-p="ftp"><label class="sw"><input type="checkbox" name="ftps" ${m.ftps ? 'checked' : ''}><i></i><span>Explicit TLS (FTPS)<small>Encrypts password and data. Disable only for old servers.</small></span></label></div>
@@ -465,6 +468,8 @@ function openEditor(id, preset) {
         <div class="fld c3" data-p="rdp" data-os-only="lnx"><span>SFTP port for files</span><input class="in mono" name="sshPort" type="number" min="1" max="65535" value="${m.sshPort}"></div>
         <div class="fld c3" style="display:flex"><span>MAC (Wake-on-LAN)</span><input class="in mono" name="mac" value="${esc(m.mac)}" placeholder="AA:BB:CC:DD:EE:FF"></div>
         <div class="c3" style="align-self:end">${sw('fav', 'Favorite', 'At the top of the list')}</div>
+        <div class="fld c6"><span>Tile picture</span><div class="imgf"><span class="cv" style="--h:${m.hue}">${m.img ? `<img src="${esc(m.img)}" alt="">` : ic(mIcon(m))}</span><input type="hidden" name="img" value="${esc(m.img)}">
+          <button type="button" class="btn sm" data-act="img-pick">Choose…</button><button type="button" class="btn sm" data-act="img-clear">Remove</button></div></div>
       </section>
       <section class="fgrid" data-sec="disp" hidden>
         <div class="fld c6"><span>Scaling</span><div class="radios">${[['dynamic','Fit','The host changes its resolution to fit the window — sharp at any size, including outside full screen.'],['fit','Scale','Fixed 1920×1080, image scaled to the window.'],['native','1:1','No scaling, with scrolling.']].map(([v, l, d]) => `<label class="rc"><input type="radio" name="scale" value="${v}" ${m.scale === v ? 'checked' : ''}><b>${l}</b><small>${d}</small></label>`).join('')}</div></div>
@@ -495,6 +500,20 @@ function openEditor(id, preset) {
   </form>`);
   $('[name=name]', el).focus();
 }
+/* tile picture: cropped to 16:9 and shrunk here, so data.json stays small */
+function pickImg(box) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = async () => {
+    try {
+      const b = await createImageBitmap(inp.files[0]), c = document.createElement('canvas'), W = c.width = 480, H = c.height = 270, k = Math.max(W / b.width, H / b.height);
+      c.getContext('2d').drawImage(b, (W - b.width * k) / 2, (H - b.height * k) / 2, b.width * k, b.height * k);
+      setImg(box, c.toDataURL('image/webp', .85));
+    } catch { toast('Not an image', {kind:'err'}); }
+  };
+  inp.click();
+}
+const setImg = (box, url) => { $('[name=img]', box).value = url; $('.cv', box).innerHTML = url ? `<img src="${url}" alt="">` : ic('monitor'); };
 function edTab(v) {
   const l = $('[data-layer=ed]'); if (!l) return;
   $$('[data-sec]', l).forEach(s => s.hidden = s.dataset.sec !== v);
@@ -507,9 +526,8 @@ function saveEditor(f, fd) {
   const m = {...DEF, ...(id ? mach(id) : {hue:Math.floor(Math.random() * 360)})};
   m.id = id || uid();
   m.proto = fd.get('proto') || 'rdp';
-  for (const k of ['name','os','profile','cred','gateway','scale','mon','share','mac','keyFile','auth','app','appArgs']) if (fd.has(k)) m[k] = String(fd.get(k)).trim();
+  for (const k of ['name','os','profile','group','img','cred','gateway','scale','mon','share','mac','keyFile','auth','app','appArgs']) if (fd.has(k)) m[k] = String(fd.get(k)).trim();
   for (const k of ['fav','hidpi','clip','drives','audio','mic','print','smart','cam','usb','admin','lowlat','rawin','ftps','certCheck','relMouse']) m[k] = fd.has(k);
-  m.group = String(fd.get(m.proto === 'rdp' ? 'group' : 'group2') || '').trim();
   m.host = host; m.port = +fd.get('port') || DEF_PORT[m.proto]; m.sshPort = +fd.get('sshPort') || 22; m.depth = +fd.get('depth') || 32;
   m.cred = m.cred || null;
   closeLayer('ed');
@@ -551,7 +569,7 @@ function palItems(raw) {
   S.D.machines.filter(m => !q || `${m.name} ${m.host} ${m.group} ${m.proto}`.toLowerCase().includes(q))
     .sort((a, b) => (b.profile === S.D.profile) - (a.profile === S.D.profile))
     .forEach(m => items.push({h:'Machines', icon:mIcon(m), label:m.name, sub:`${PROTO[m.proto]} · ${m.host} · ${prof(m.profile).name}`, live:S.sessions.some(s => s.mid === m.id), run:() => connect(m.id)}));
-  [['New machine','plus',() => openEditor(),''],['Import .rdp file','plus',() => importRdp(),''],['Session overview','grid',() => ACT.overview(),'Ctrl Shift O'],['Files and transfer','folder',() => { S.panel = 'files'; renderPanel(); },''],
+  [['New machine','plus',() => openEditor(),''],['New group','newfolder',() => ACT.gnew(),''],['Import .rdp file','plus',() => importRdp(),''],['Session overview','grid',() => ACT.overview(),'Ctrl Shift O'],['Files and transfer','folder',() => { S.panel = 'files'; renderPanel(); },''],
    ['Shared clipboard','clip',() => { S.panel = 'clip'; renderPanel(); },''],['Password vault','key',openVault,''],['Toggle theme','moon',() => ACT.theme(),''],['Sidebar','sidebar',() => ACT.sidebar(),'Ctrl B'],
    S.update ? [`Update to ${S.update} and restart`,'arrowdown',() => ACT.ver(),`you have ${S.D.version}`] : ['Check for updates','refresh',() => ACT.ver(),`v${S.D.version}`]]
     .filter(([l]) => !q || l.toLowerCase().includes(q)).forEach(([label, icon, run, sub]) => items.push({h:'Actions', icon, label, sub, run}));
@@ -616,6 +634,20 @@ const ACT = {
     const el = openLayer('prompt', `<form class="modal pm" data-form="prompt"><div class="mh"><div class="row"><h2>New profile</h2></div></div><div class="mb"><input class="in" name="v" placeholder="e.g. Client ACME" required></div><div class="mf"><span class="grow"></span><button type="button" class="btn" data-act="x">Cancel</button><button class="btn pri">Create</button></div></form>`);
     $('input', el).focus();
   },
+  profren: id => {
+    $('#profMenu').hidden = true;
+    const el = openLayer('prompt', `<form class="modal pm" data-form="profren" data-id="${esc(id)}"><div class="mh"><div class="row"><h2>Rename profile</h2></div></div><div class="mb"><input class="in" name="v" value="${esc(prof(id).name)}" required></div><div class="mf"><span class="grow"></span><button type="button" class="btn" data-act="x">Cancel</button><button class="btn pri">Save</button></div></form>`);
+    $('input', el).select();
+  },
+  profdel: id => { $('#profMenu').hidden = true; post({t:'delProfile', id}); },
+  gadd: (id, v, a) => openEditor(null, {group:a.dataset.g}),
+  gdel: (id, v, a) => post({t:'delGroup', name:a.dataset.g}),
+  gnew: () => {
+    const el = openLayer('prompt', `<form class="modal pm" data-form="group"><div class="mh"><div class="row"><h2>New group</h2></div></div><div class="mb"><input class="in" name="v" placeholder="e.g. Production" required></div><div class="mf"><span class="grow"></span><button type="button" class="btn" data-act="x">Cancel</button><button class="btn pri">Create</button></div></form>`);
+    $('input', el).focus();
+  },
+  'img-pick': (id, v, a) => pickImg(a.closest('.imgf')),
+  'img-clear': (id, v, a) => setImg(a.closest('.imgf'), ''),
   group: (id, v, a) => { const g = a.dataset.g; S.collapsed.has(g) ? S.collapsed.delete(g) : S.collapsed.add(g); renderList(); },
   sel: (id, v, a, e) => {
     const p = S.panes[a.dataset.k], n = a.dataset.name;
@@ -735,6 +767,8 @@ document.addEventListener('submit', e => {
   switch (f.dataset.form) {
     case 'quick': quickConnect(fd.get('q')); break;
     case 'prompt': if (v) { closeLayer('prompt'); post({t:'addProfile', name:v, color:['#6b8afd','#2fb67c','#e0a030','#e5484d','#8e5bd8','#26a0da'][S.D.profiles.length % 6]}); } break;
+    case 'profren': if (v) { closeLayer('prompt'); post({t:'renameProfile', id:f.dataset.id, name:v}); } break;
+    case 'group': if (v) { closeLayer('prompt'); S.collapsed.delete(v); post({t:'addGroup', name:v}); } break;
     case 'mkdir': if (v) { closeLayer('prompt'); const k = f.dataset.k, p = S.panes[k]; p.req = ++S.reqN; post({t:'mkdir', req:p.req, k, loc:p.loc, path:p.path, name:v}); } break;
     case 'vadd': post({t:'addCred', label:fd.get('label'), user:fd.get('user'), pass:fd.get('pass')}); f.reset(); toast('Added to vault', {icon:'lock'}); break;
     case 'ed': saveEditor(f, fd); break;
@@ -750,6 +784,7 @@ document.addEventListener('change', e => {
     ed.dataset.proto = t.value;
   }
   if (ed && t.name === 'os') ed.dataset.os = t.value;
+  if (ed && t.name === 'group' && !t.value) { t.outerHTML = '<input class="in" name="group" placeholder="New group name">'; $('[name=group]', ed).focus(); }
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'msearch') { S.search = e.target.value; renderList(); }
@@ -777,6 +812,8 @@ let dropEl = null;
 const setDrop = t => { if (dropEl !== t) { dropEl?.classList.remove('drop'); t?.classList.add('drop'); dropEl = t; } };
 const endDrag = () => { setDrop(null); document.body.classList.remove('dragging'); };
 document.addEventListener('dragstart', e => {
+  const mr = e.target.closest?.('[data-mdrag]');
+  if (mr) { S.dragM = mr.dataset.mdrag; e.dataTransfer.setData('text/plain', mach(S.dragM)?.name || ''); e.dataTransfer.effectAllowed = 'move'; return; }
   const el = e.target.closest?.('[data-drag]'); if (!el) return;
   const k = el.dataset.drag, p = S.panes[k], name = el.dataset.name;
   const names = p.sel.has(name) && p.sel.size > 1 ? [...p.sel] : [name];
@@ -787,14 +824,20 @@ document.addEventListener('dragstart', e => {
 document.addEventListener('dragenter', () => document.body.classList.add('dragging'));
 document.addEventListener('dragover', e => {
   e.preventDefault();
-  const t = e.target.closest?.('[data-dropto]');
+  const t = e.target.closest?.(S.dragM ? '[data-gdrop]' : '[data-dropto]');
   setDrop(t);
-  e.dataTransfer.dropEffect = t ? (S.moveMode || e.shiftKey ? 'move' : 'copy') : 'none';
+  e.dataTransfer.dropEffect = t ? (S.dragM || S.moveMode || e.shiftKey ? 'move' : 'copy') : 'none';
 });
 document.addEventListener('dragleave', e => { if (!e.relatedTarget) endDrag(); });
-document.addEventListener('dragend', endDrag);
+document.addEventListener('dragend', () => { S.dragM = null; endDrag(); });
 document.addEventListener('drop', e => {
   e.preventDefault();
+  if (S.dragM) {
+    const g = e.target.closest?.('[data-gdrop]')?.dataset.gdrop, m = mach(S.dragM);
+    endDrag();
+    if (g && m && m.group !== g) post({t:'saveMachine', m:{...m, group:g}});
+    return;
+  }
   const t = e.target.closest?.('[data-dropto]');
   endDrag();
   if (!t) return;

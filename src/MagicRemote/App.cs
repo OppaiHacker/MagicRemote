@@ -123,6 +123,23 @@ public abstract class App
                     if (p.Name == "") break;
                     Store.D.Profiles.Add(p); Store.D.Profile = p.Id; Save();
                     break;
+                case "renameProfile":
+                    if (Store.D.Profiles.FirstOrDefault(x => x.Id == S("id")) is { } rp && S("name").Trim() is { Length: > 0 } rn) { rp.Name = rn; Save(); }
+                    break;
+                case "delProfile":
+                    // only empty profiles, never the last one: machines are moved or deleted first
+                    if (Store.D.Profiles.Count > 1 && !Store.D.Machines.Any(x => x.Profile == S("id")) && Store.D.Profiles.RemoveAll(x => x.Id == S("id")) > 0)
+                    {
+                        if (!Store.D.Profiles.Any(x => x.Id == Store.D.Profile)) Store.D.Profile = Store.D.Profiles[0].Id;
+                        Save();
+                    }
+                    break;
+                case "addGroup":
+                    if (Store.D.Profiles.FirstOrDefault(x => x.Id == Store.D.Profile) is { } gp && S("name").Trim() is { Length: > 0 } gn && !gp.Groups.Contains(gn)) { gp.Groups.Add(gn); Save(); }
+                    break;
+                case "delGroup":
+                    if (Store.D.Profiles.FirstOrDefault(x => x.Id == Store.D.Profile) is { } dp && !Store.D.Machines.Any(x => x.Profile == dp.Id && x.Group == S("name")) && dp.Groups.Remove(S("name"))) Save();
+                    break;
                 case "selectProfile": if (Store.D.Profiles.Any(x => x.Id == S("id"))) { Store.D.Profile = S("id"); Save(); } break;
                 case "theme":
                     Store.D.Theme = S("v") == "light" ? "light" : "dark";
@@ -247,7 +264,9 @@ public abstract class App
         m.Name = string.IsNullOrWhiteSpace(m.Name) ? m.Host : m.Name.Trim();
         m.Group = string.IsNullOrWhiteSpace(m.Group) ? "No group" : m.Group.Trim();
         m.App = m.App.Trim();
+        if (!m.Img.StartsWith("data:image/") || m.Img.Length > 1_000_000) m.Img = "";
         if (!Store.D.Profiles.Any(p => p.Id == m.Profile)) m.Profile = Store.D.Profile;
+        if (Store.D.Profiles.First(p => p.Id == m.Profile) is var mp && m.Group != "No group" && !mp.Groups.Contains(m.Group)) mp.Groups.Add(m.Group);
         if (m.Cred != null && !Store.D.Creds.Any(c => c.Id == m.Cred)) m.Cred = null;
         var i = Store.D.Machines.FindIndex(x => x.Id == m.Id);
         if (i >= 0)

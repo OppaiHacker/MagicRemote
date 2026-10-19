@@ -9,6 +9,7 @@ public sealed class Profile
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Color { get; set; } = "#6b8afd";
+    public List<string> Groups { get; set; } = []; // kept even when empty, so a group can exist before any machine is in it
 }
 
 public sealed class Machine
@@ -50,6 +51,7 @@ public sealed class Machine
     public bool RelMouse { get; set; }           // RDP: relative mouse (games, 3D)      // RDP: "" | "restricted" (Restricted Admin) | "rcg" (Remote Credential Guard)
     public bool CertCheck { get; set; } = true; // RDP: warn on untrusted server certificate (off only for self-signed lab hosts)
     public int Hue { get; set; } = 220;
+    public string Img { get; set; } = "";        // tile picture, small data:image/ URL
     public long Last { get; set; }
 }
 
