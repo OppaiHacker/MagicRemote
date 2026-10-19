@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace MagicRemote;
 
@@ -48,6 +49,40 @@ static class Native
         int rc = WNetAddConnection2(new NETRESOURCE { lpRemoteName = shareRoot }, password, user, 0);
         // 1219: already connected to this server with other credentials — the existing session is reused.
         if (rc != 0 && rc != 1219 && rc != 85) throw new Win32Exception(rc);
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct CREDUI_INFO { public int cbSize; public IntPtr hwndParent; public string pszMessageText, pszCaptionText; public IntPtr hbmBanner; }
+    [DllImport("credui.dll", CharSet = CharSet.Unicode)] static extern int CredUIPromptForWindowsCredentials(ref CREDUI_INFO info, int authError, ref uint pkg, IntPtr inBuf, uint inSize, out IntPtr outBuf, out uint outSize, ref bool save, int flags);
+    [DllImport("credui.dll", CharSet = CharSet.Unicode)] static extern bool CredUnPackAuthenticationBuffer(int flags, IntPtr buf, uint size, StringBuilder user, ref int userLen, StringBuilder? domain, ref int domainLen, StringBuilder pass, ref int passLen);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool LogonUser(string user, string? domain, string pass, int type, int provider, out IntPtr token);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+    [DllImport("kernel32.dll", EntryPoint = "RtlZeroMemory")] static extern void ZeroMemory(IntPtr p, UIntPtr n);
+    [DllImport("ole32.dll")] static extern void CoTaskMemFree(IntPtr p);
+
+    /// <summary>Fallback when Windows Hello is unavailable (e.g. disabled by domain policy): Windows password prompt, accepted only for the signed-in account.</summary>
+    public static bool VerifyWindowsPassword(IntPtr owner, string message)
+    {
+        var ui = new CREDUI_INFO { cbSize = Marshal.SizeOf<CREDUI_INFO>(), hwndParent = owner, pszCaptionText = "MagicRemote", pszMessageText = message };
+        using var me = System.Security.Principal.WindowsIdentity.GetCurrent();
+        for (int err = 0; ; err = 1326) // ERROR_LOGON_FAILURE: the prompt shows "wrong password"
+        {
+            uint pkg = 0; bool save = false;
+            if (CredUIPromptForWindowsCredentials(ref ui, err, ref pkg, IntPtr.Zero, 0, out var buf, out var size, ref save, 0x200) != 0) return false; // CREDUIWIN_ENUMERATE_CURRENT_USER; non-zero = cancelled
+            try
+            {
+                var u = new StringBuilder(514); var p = new StringBuilder(256);
+                int ul = u.Capacity, dl = 0, pl = p.Capacity;
+                if (!CredUnPackAuthenticationBuffer(1, buf, size, u, ref ul, null, ref dl, p, ref pl)) return false; // CRED_PACK_PROTECTED_CREDENTIALS
+                var (dom, user) = Session.SplitUser(u.ToString());
+                // LOGON32_LOGON_INTERACTIVE also works offline with cached domain credentials
+                if (!LogonUser(user, dom == "" ? null : dom, p.ToString(), 2, 0, out var tok)) continue;
+                using var id = new System.Security.Principal.WindowsIdentity(tok);
+                CloseHandle(tok);
+                return id.User == me.User;
+            }
+            finally { ZeroMemory(buf, size); CoTaskMemFree(buf); }
+        }
     }
 }
 

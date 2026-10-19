@@ -69,7 +69,7 @@ dist-linux/MagicRemote --selftest
 | Drag and drop | From Explorer or a file manager directly onto the RDP image, onto a tab, or onto the file panel. Shift = move |
 | Clipboard | Shared history for host and session. Copied passwords are not added to the history |
 | `.rdp` files | Import (including by dragging the file, UTF-16 from mstsc) and export |
-| Password vault | Windows: DPAPI and Windows Hello before a password is shown. Linux: AES-256-GCM, key in Secret Service or in a 0600 file, polkit before a password is shown |
+| Password vault | Windows: DPAPI and Windows Hello before a password is shown (Windows password when Hello is unavailable, e.g. disabled by domain policy). Linux: AES-256-GCM, key in Secret Service or in a 0600 file, polkit before a password is shown |
 
 Data: Windows `%APPDATA%\MagicRemote`, Linux `~/.config/MagicRemote` (or `MAGICREMOTE_DATA`). Passwords are stored there only in encrypted form. Errors go to `error.log` in the same folder.
 

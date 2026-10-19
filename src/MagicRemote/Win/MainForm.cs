@@ -198,18 +198,17 @@ sealed class WinApp(MainForm form) : App
 
     protected override async Task<bool> Verify()
     {
+        const string why = "MagicRemote: confirm access to the vault password";
+        bool ok;
         try
         {
-            if (await UserConsentVerifier.CheckAvailabilityAsync() != UserConsentVerifierAvailability.Available)
-            {
-                Toast("Windows Hello is unavailable — set up a PIN or biometrics in Windows Settings.", "err");
-                return false;
-            }
-            var r = await UserConsentVerifierInterop.RequestVerificationForWindowAsync(form.Handle, "MagicRemote: confirm access to the vault password");
-            if (r == UserConsentVerificationResult.Verified) return true;
-            Toast("Verification cancelled", "err");
+            ok = await UserConsentVerifier.CheckAvailabilityAsync() == UserConsentVerifierAvailability.Available
+                ? await UserConsentVerifierInterop.RequestVerificationForWindowAsync(form.Handle, why) == UserConsentVerificationResult.Verified
+                : Native.VerifyWindowsPassword(form.Handle, why + " with your Windows password (Windows Hello is unavailable)");
         }
-        catch (Exception e) { Toast("Windows Hello: " + e.Message, "err"); }
+        catch (Exception e) { Log(e); ok = Native.VerifyWindowsPassword(form.Handle, why + " with your Windows password"); }
+        if (ok) return true;
+        Toast("Verification cancelled", "err");
         return false;
     }
 }

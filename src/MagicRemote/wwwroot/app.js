@@ -413,7 +413,7 @@ function clipHTML() {
 
 /* ---------- vault ---------- */
 function vaultHTML() {
-  return `<div class="modal vault"><div class="mh"><div class="row"><span class="vic">${ic('shield')}</span><div style="flex:1"><h2>Password vault</h2><small class="muted">${isLinux() ? 'Encrypted with AES-256-GCM, key in the desktop keyring · view and copy after polkit authentication' : 'Encrypted with DPAPI (your Windows account only) · view and copy after Windows Hello verification'}</small></div><button class="icon-btn" data-act="x">${ic('x')}</button></div></div>
+  return `<div class="modal vault"><div class="mh"><div class="row"><span class="vic">${ic('shield')}</span><div style="flex:1"><h2>Password vault</h2><small class="muted">${isLinux() ? 'Encrypted with AES-256-GCM, key in the desktop keyring · view and copy after polkit authentication' : 'Encrypted with DPAPI (your Windows account only) · view and copy after Windows Hello verification or your Windows password'}</small></div><button class="icon-btn" data-act="x">${ic('x')}</button></div></div>
     <div class="mb">${S.D.creds.map(c => {
       const used = S.D.machines.filter(m => m.cred === c.id).length, shown = c.id in S.reveal;
       return `<div class="vr"><span class="os">${ic('key')}</span><div class="vm"><b>${esc(c.label || c.user)}</b><small><span class="mono">${esc(c.user)}</span> · ${used} ${plural(used, 'machine', 'machines', 'machines')}</small></div>

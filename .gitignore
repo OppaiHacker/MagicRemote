@@ -3,3 +3,5 @@ obj/
 dist/
 *.user
 dist-linux/
+todo.md
+releases/
