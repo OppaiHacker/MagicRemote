@@ -30,6 +30,8 @@ Remote desktop client: RDP, SSH, SFTP and FTP/FTPS in one tabbed window. Primari
 
 ## Installation
 
+Windows: [MagicRemote-Setup.exe](https://github.com/OppaiHacker/MagicRemote/releases/latest/download/MagicRemote-Setup.exe) downloads the latest Windows package from GitHub, checks its SHA-256, installs it per user (no admin) and starts the app.
+
 Ready-made packages are on the [Releases](https://github.com/OppaiHacker/MagicRemote/releases/latest) page: `MagicRemote-<version>-win-x64.zip` and `MagicRemote-<version>-linux-x64.tar.gz` (self-contained, no .NET install needed).
 
 ```
@@ -120,6 +122,7 @@ src/MagicRemote/
   Win/              WinForms + WebView2 window, RDP via mstscax
   Linux/            local server + browser window, RDP via FreeRDP, vault key
   wwwroot/          UI (HTML/CSS/JS, xterm.js)
+src/MagicRemote.Setup/  Windows web installer (MagicRemote-Setup.exe, .NET Framework 4.8)
 tests/              selftest, E2E via CDP (Windows, Linux, updates)
 ```
 

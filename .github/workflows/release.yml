@@ -1,4 +1,4 @@
-# Tag vX.Y.Z -> build Windows and Linux packages (self-contained), selftest, GitHub release with both assets.
+# Tag vX.Y.Z -> build Windows and Linux packages (self-contained), selftest, web installer, GitHub release with all assets.
 name: release
 on:
   push:
@@ -21,7 +21,9 @@ jobs:
           out/MagicRemote-linux/MagicRemote --selftest
           tar -czf MagicRemote-$v-linux-x64.tar.gz -C out/MagicRemote-linux .
           (cd out/MagicRemote-win && zip -qr ../../MagicRemote-$v-win-x64.zip .)
+          dotnet build src/MagicRemote.Setup -c Release -o out/setup
+          cp out/setup/MagicRemote-Setup.exe .
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" MagicRemote-*.zip MagicRemote-*.tar.gz --title "MagicRemote ${GITHUB_REF_NAME#v}" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" MagicRemote-*.zip MagicRemote-*.tar.gz MagicRemote-Setup.exe --title "MagicRemote ${GITHUB_REF_NAME#v}" --generate-notes
