@@ -125,6 +125,8 @@ select.in{padding-right:4px}
 .sfoot{border-top:1px solid var(--border);padding:8px;display:flex;gap:4px}
 .sfoot button{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:32px;border-radius:8px;color:var(--text2)}
 .sfoot button:hover{background:var(--hover);color:var(--text)}
+.sfoot .ver{flex:none;padding:0 8px;font:500 11px/1 var(--mono);color:var(--muted)}
+.sfoot .ver.up{color:var(--accent);background:var(--accent-soft)}
 
 /* ---------- stage ---------- */
 .stagewrap{position:relative;flex:1;min-width:0;background:var(--bg2)}

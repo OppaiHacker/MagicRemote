@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MagicRemote</RootNamespace>
     <NoWarn>CA1416;MSB3277;WFDEV005</NoWarn>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.22621.0'">

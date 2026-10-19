@@ -80,7 +80,7 @@ const isLinux = () => S.D.platform === 'linux';
 
 /* ---------- state ---------- */
 const S = {
-  D:{profiles:[], machines:[], creds:[], profile:'', theme:'dark', sidebar:true, platform:'win'}, quit:false,
+  D:{profiles:[], machines:[], creds:[], profile:'', theme:'dark', sidebar:true, platform:'win', version:''}, quit:false, update:null,
   sessions:[], active:null, view:'session', panel:null, occ:null,
   reach:{}, clip:[], transfers:new Map(), thumbs:{}, reveal:{},
   search:'', collapsed:new Set(), moveMode:false, palIdx:0, palItems:[], reqN:0,
@@ -161,7 +161,14 @@ function renderTabs() {
 function renderSidebar() {
   const p = prof(), n = S.D.machines.filter(m => m.profile === p.id).length;
   $('#profBtn').innerHTML = `<span class="pav" style="--c:${esc(p.color)}">${esc(p.name[0] || '?')}</span><span class="pn"><b>${esc(p.name)}</b><small>Profile · ${n} ${plural(n, 'machine', 'machines', 'machines')}</small></span>${ic('down')}`;
+  renderVer();
   renderList();
+}
+function renderVer() {
+  const b = $('#verBtn');
+  b.classList.toggle('up', !!S.update);
+  b.innerHTML = S.update ? `${ic('arrowdown')}${esc(S.update)}` : `v${esc(S.D.version)}`;
+  b.title = S.update ? `Update to ${S.update} and restart (you have ${S.D.version})` : 'Check for updates';
 }
 function renderList() {
   const q = S.search.trim().toLowerCase();
@@ -545,7 +552,8 @@ function palItems(raw) {
     .sort((a, b) => (b.profile === S.D.profile) - (a.profile === S.D.profile))
     .forEach(m => items.push({h:'Machines', icon:mIcon(m), label:m.name, sub:`${PROTO[m.proto]} · ${m.host} · ${prof(m.profile).name}`, live:S.sessions.some(s => s.mid === m.id), run:() => connect(m.id)}));
   [['New machine','plus',() => openEditor(),''],['Import .rdp file','plus',() => importRdp(),''],['Session overview','grid',() => ACT.overview(),'Ctrl Shift O'],['Files and transfer','folder',() => { S.panel = 'files'; renderPanel(); },''],
-   ['Shared clipboard','clip',() => { S.panel = 'clip'; renderPanel(); },''],['Password vault','key',openVault,''],['Toggle theme','moon',() => ACT.theme(),''],['Sidebar','sidebar',() => ACT.sidebar(),'Ctrl B']]
+   ['Shared clipboard','clip',() => { S.panel = 'clip'; renderPanel(); },''],['Password vault','key',openVault,''],['Toggle theme','moon',() => ACT.theme(),''],['Sidebar','sidebar',() => ACT.sidebar(),'Ctrl B'],
+   S.update ? [`Update to ${S.update} and restart`,'arrowdown',() => ACT.ver(),`you have ${S.D.version}`] : ['Check for updates','refresh',() => ACT.ver(),`v${S.D.version}`]]
     .filter(([l]) => !q || l.toLowerCase().includes(q)).forEach(([label, icon, run, sub]) => items.push({h:'Actions', icon, label, sub, run}));
   return items;
 }
@@ -596,6 +604,7 @@ const ACT = {
   theme: () => { S.D.theme = S.D.theme === 'dark' ? 'light' : 'dark'; applyTheme(); post({t:'theme', v:S.D.theme}); },
   sidebar: () => { S.D.sidebar = !S.D.sidebar; applyTheme(); post({t:'sidebar', v:S.D.sidebar}); },
   vault: () => openVault(),
+  ver: () => post({t: S.update ? 'doUpdate' : 'checkUpdate'}),
   palette: () => openPalette(),
   scale: (id, v) => post({t:'scale', sid:S.active, v}),
   fullscreen: () => post({t:'fullscreen', sid:S.active}),
@@ -654,7 +663,7 @@ const ACT = {
 /* ---------- host → UI ---------- */
 const H = {
   data: m => {
-    S.D = {profiles:m.profiles, machines:m.machines, creds:m.creds, profile:m.profile, theme:m.theme, sidebar:m.sidebar, platform:m.platform || 'win'};
+    S.D = {profiles:m.profiles, machines:m.machines, creds:m.creds, profile:m.profile, theme:m.theme, sidebar:m.sidebar, platform:m.platform || 'win', version:m.version || ''};
     applyTheme(); renderSidebar(); renderTabs(); renderStage(); refreshVault();
   },
   sessions: m => {
@@ -693,7 +702,12 @@ const H = {
     if (fresh) rerenderFiles();
     paintTransfers();
   },
-  update: m => toast(`Version ${m.version} available (you have ${m.current})`, {icon:'info', ms:20000, action:{label:'Update and restart', fn:() => post({t:'doUpdate'})}}),
+  update: m => {
+    if (!m.version) return toast(`MagicRemote ${m.current} is up to date`);
+    const fresh = S.update !== m.version;
+    S.update = m.version; renderVer();
+    if (fresh) toast(`Version ${m.version} available (you have ${m.current})`, {icon:'info', ms:20000, action:{label:'Update and restart', fn:() => post({t:'doUpdate'})}});
+  },
   download: m => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([m.text], {type:'application/x-rdp'}));

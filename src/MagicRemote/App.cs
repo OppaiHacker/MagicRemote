@@ -67,6 +67,7 @@ public abstract class App
         t = "data", Store.D.Profiles, Store.D.Machines, Store.D.Profile, Store.D.Theme, Store.D.Sidebar,
         creds = Store.D.Creds.Select(c => new { c.Id, c.Label, c.User }),
         platform = OperatingSystem.IsWindows() ? "win" : "linux",
+        version = Updater.Current,
     });
 
     public void PushSessions() => Send(new
@@ -91,6 +92,7 @@ public abstract class App
             {
                 case "ready": ready = true; PushData(); PushSessions(); CheckReach(); CheckUpdate(); break;
                 case "doUpdate": _ = DoUpdate(); break;
+                case "checkUpdate": CheckUpdate(true); break;
                 case "stage":
                     var dpr = m.GetProperty("dpr").GetDouble();
                     int P(string k) => (int)Math.Round(m.GetProperty(k).GetDouble() * dpr);
@@ -436,17 +438,18 @@ public abstract class App
     (string version, string url, string? sha256)? update;
     bool updateChecked;
 
-    async void CheckUpdate()
+    /// <summary>Once per start, or on demand (manual: also reports "up to date" and errors).</summary>
+    async void CheckUpdate(bool manual = false)
     {
         if (update is { } known) { Send(new { t = "update", version = known.version, current = Updater.Current }); return; } // UI reloaded
-        if (updateChecked || Environment.GetEnvironmentVariable("MAGICREMOTE_NOUPDATE") == "1") return;
+        if ((updateChecked && !manual) || Environment.GetEnvironmentVariable("MAGICREMOTE_NOUPDATE") == "1") return;
         updateChecked = true;
         try
         {
             update = await Updater.Check();
-            if (update is { } u) UI(() => Send(new { t = "update", version = u.version, current = Updater.Current }));
+            if (update != null || manual) UI(() => Send(new { t = "update", version = update?.version, current = Updater.Current }));
         }
-        catch (Exception e) { Log(e); } // offline or rate-limited: try again next start
+        catch (Exception e) { Log(e); if (manual) Toast("Update check failed: " + Friendly(e), "err"); } // offline or rate-limited: try again next start
     }
 
     async Task DoUpdate()
