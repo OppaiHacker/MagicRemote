@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags and history for the release notes
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -26,4 +28,6 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" MagicRemote-*.zip MagicRemote-*.tar.gz MagicRemote-Setup.exe --title "MagicRemote ${GITHUB_REF_NAME#v}" --generate-notes
+        run: |
+          sh .github/release-notes.sh "$GITHUB_REF_NAME" > notes.md
+          gh release create "$GITHUB_REF_NAME" MagicRemote-*.zip MagicRemote-*.tar.gz MagicRemote-Setup.exe --title "MagicRemote ${GITHUB_REF_NAME#v}" --notes-file notes.md --generate-notes
